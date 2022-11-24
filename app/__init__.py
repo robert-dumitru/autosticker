@@ -1,4 +1,5 @@
 import os
+import random
 import asyncio
 from io import BytesIO
 from telebot.async_telebot import AsyncTeleBot
@@ -7,7 +8,7 @@ from PIL import Image
 
 from util import generate_images
 
-bot = AsyncTeleBot(os.getenv("AUTOSTICKER_TELEGRAM_TOKEN"))
+bot = AsyncTeleBot(os.getenv("AUTOSTICKER_TG_TOKEN"))
 sticker_link_prefix = "https://t.me/addstickers/"
 
 
@@ -26,7 +27,8 @@ async def create_predictions(message: Message) -> None:
         file_bytes = await bot.download_file(file.file_path)
         return Image.open(BytesIO(file_bytes))
 
-    sticker_images = await asyncio.gather(*map(get_image, sticker_set.stickers))
+    sticker_subset = random.sample(sticker_set.stickers, 10)
+    sticker_images = await asyncio.gather(*map(get_image, sticker_subset))
     new_images = await generate_images(sticker_images)
 
     async def send_image(image: Image) -> None:
@@ -41,4 +43,5 @@ async def create_predictions(message: Message) -> None:
 async def fallback(message: Message) -> None:
     await bot.reply_to(message, "This command doesn't exist. Please try another command.")
 
-asyncio.run(bot.polling())
+if __name__ == "__main__":
+    asyncio.run(bot.polling())

@@ -1,4 +1,5 @@
 import os
+import random
 import asyncio
 import logging
 import uuid
@@ -40,7 +41,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
         model="text-davinci-002",
         prompt=captions,
         temperature=0.9,
-        max_tokens=64
+        max_tokens=128
     )
     diffusion_prompts = list(itertools.chain(*[p["text"].splitlines() for p in gpt3_response["choices"]]))
     logging.debug(f"Diffusion prompts: {diffusion_prompts}")
@@ -50,7 +51,16 @@ async def generate_images(images: list[Image]) -> list[Image]:
 
     # generate new images using stable diffusion
     async def create_image(prompt: str) -> list[Image]:
-        outputs = stable_diffusion_model.predict(prompt=prompt, width=512, height=512)
+        init_image = random.choice(images)
+        file = BytesIO()
+        init_image.save(file, "PNG")
+        outputs = stable_diffusion_model.predict(
+            prompt=prompt,
+            width=512,
+            height=512,
+            init_image=file,
+            prompt_strength=0.6
+        )
         image_list = await asyncio.gather(*map(download_image, outputs))
         return image_list
 
