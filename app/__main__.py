@@ -6,7 +6,7 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.types import Message, Sticker
 from PIL import Image
 
-from util import generate_images
+from .util import generate_images
 
 bot = AsyncTeleBot(os.getenv("AUTOSTICKER_TG_TOKEN"))
 sticker_link_prefix = "https://t.me/addstickers/"
@@ -43,5 +43,4 @@ async def create_predictions(message: Message) -> None:
 async def fallback(message: Message) -> None:
     await bot.reply_to(message, "This command doesn't exist. Please try another command.")
 
-if __name__ == "__main__":
-    asyncio.run(bot.polling())
+asyncio.run(bot.polling())
