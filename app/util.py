@@ -10,6 +10,8 @@ import replicate
 import requests
 from PIL import Image
 
+from .cfg import MAX_OUTPUT_IMAGES
+
 # openai token setup
 openai.organization = os.getenv("OPENAI_ORG")
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -30,20 +32,28 @@ async def generate_images(images: list[Image]) -> list[Image]:
     async def caption_image(image: Image) -> str:
         file = BytesIO()
         image.save(file, "PNG")
-        return clip_caption_model.predict(image=file, model="conceptual-captions", use_beam_search=True)
+        return clip_caption_model.predict(
+            image=file, model="conceptual-captions", use_beam_search=True
+        )
 
     clip_outputs = await asyncio.gather(*map(caption_image, images))
+    logging.debug(f"CLIP outputs: {clip_outputs}")
     captions = "".join(pred.strip() + "\n" for pred in clip_outputs)
-    logging.debug(f"Image captions: {captions}")
 
     # pass captions through gpt3
     gpt3_response = openai.Completion.create(
-        model="text-davinci-002",
-        prompt=captions,
-        temperature=0.9,
-        max_tokens=128
+        model="text-davinci-002", prompt=captions, temperature=0.9, max_tokens=128
     )
-    diffusion_prompts = list(itertools.chain(*[p["text"].splitlines() for p in gpt3_response["choices"]]))
+    logging.debug(f"GPT3 response: {gpt3_response}")
+    # limit to 2 prompts for cost reasons
+    diffusion_prompts = list(
+        filter(
+            None,
+            itertools.chain(
+                *[p["text"].splitlines() for p in gpt3_response["choices"]]
+            ),
+        )
+    )[: MAX_OUTPUT_IMAGES]
     logging.debug(f"Diffusion prompts: {diffusion_prompts}")
 
     async def download_image(url: str) -> Image:
@@ -54,15 +64,20 @@ async def generate_images(images: list[Image]) -> list[Image]:
         init_image = random.choice(images)
         file = BytesIO()
         init_image.save(file, "PNG")
-        outputs = stable_diffusion_model.predict(
-            prompt=prompt,
-            width=512,
-            height=512,
-            init_image=file,
-            prompt_strength=0.6
-        )
-        image_list = await asyncio.gather(*map(download_image, outputs))
-        return image_list
+        try:
+            outputs = stable_diffusion_model.predict(
+                prompt=prompt,
+                width=512,
+                height=512,
+                init_image=file,
+                prompt_strength=0.5,
+            )
+            image_list = await asyncio.gather(*map(download_image, outputs))
+            logging.debug(f"Created {len(image_list)} new images")
+            return image_list
+        except Exception as e:
+            logging.warning(e)
+            return []
 
     new_images = await asyncio.gather(*map(create_image, diffusion_prompts))
     return list(itertools.chain(*new_images))
@@ -72,6 +87,8 @@ async def generate_images(images: list[Image]) -> list[Image]:
 if __name__ == "__main__":
     test_dir = "app/photos"
     save_dir = "app/results"
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
     original_images = []
     for path in os.listdir(test_dir):
         image = Image.open(f"{test_dir}/{path}")
