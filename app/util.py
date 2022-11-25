@@ -70,7 +70,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
                 width=512,
                 height=512,
                 init_image=file,
-                prompt_strength=0.5,
+                prompt_strength=0.6,
             )
             image_list = await asyncio.gather(*map(download_image, outputs))
             logging.debug(f"Created {len(image_list)} new images")

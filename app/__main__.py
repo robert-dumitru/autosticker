@@ -69,4 +69,4 @@ async def fallback(message: Message) -> None:
     )
 
 
-asyncio.run(bot.polling())
+asyncio.run(bot.polling(non_stop=True))
