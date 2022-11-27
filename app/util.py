@@ -51,7 +51,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
 
     # pass captions through gpt3
     gpt3_response = openai.Completion.create(
-        model="text-davinci-002", prompt=captions, temperature=0.9, max_tokens=128
+        model="text-davinci-002", prompt=captions, temperature=0.8, max_tokens=128
     )
     logging.debug(f"GPT3 response: {gpt3_response}")
     # limit to 2 prompts for cost reasons
@@ -83,7 +83,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
                     "width": 512,
                     "height": 512,
                     "init_image": file,
-                    "prompt_strength": 0.6,
+                    "prompt_strength": 0.7,
                 },
             )
             while prediction.status not in ["succeeded", "failed", "canceled"]:
