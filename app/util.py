@@ -7,7 +7,7 @@ import itertools
 from io import BytesIO
 import openai
 import replicate
-import requests
+import aiohttp
 from PIL import Image
 
 from .cfg import MAX_OUTPUT_IMAGES
@@ -32,9 +32,18 @@ async def generate_images(images: list[Image]) -> list[Image]:
     async def caption_image(image: Image) -> str:
         file = BytesIO()
         image.save(file, "PNG")
-        return clip_caption_model.predict(
-            image=file, model="conceptual-captions", use_beam_search=True
+        prediction = replicate.predictions.create(
+            version=clip_caption_model.versions.list()[0],
+            input={
+                "image": file,
+                "model": "conceptual-captions",
+                "use_beam_search": True,
+            },
         )
+        while prediction.status not in ["succeeded", "failed", "canceled"]:
+            await asyncio.sleep(0.5)
+            prediction.reload()
+        return prediction.output
 
     clip_outputs = await asyncio.gather(*map(caption_image, images))
     logging.debug(f"CLIP outputs: {clip_outputs}")
@@ -53,11 +62,13 @@ async def generate_images(images: list[Image]) -> list[Image]:
                 *[p["text"].splitlines() for p in gpt3_response["choices"]]
             ),
         )
-    )[: MAX_OUTPUT_IMAGES]
+    )[:MAX_OUTPUT_IMAGES]
     logging.debug(f"Diffusion prompts: {diffusion_prompts}")
 
-    async def download_image(url: str) -> Image:
-        return Image.open(requests.get(url, stream=True).raw)
+    async def download_image(session: aiohttp.ClientSession, url: str) -> Image:
+        async with session.get(url) as response:
+            raw = await response.read()
+        return Image.open(raw)
 
     # generate new images using stable diffusion
     async def create_image(prompt: str) -> list[Image]:
@@ -65,14 +76,23 @@ async def generate_images(images: list[Image]) -> list[Image]:
         file = BytesIO()
         init_image.save(file, "PNG")
         try:
-            outputs = stable_diffusion_model.predict(
-                prompt=prompt,
-                width=512,
-                height=512,
-                init_image=file,
-                prompt_strength=0.6,
+            prediction = replicate.predictions.create(
+                version=stable_diffusion_model.versions.list()[0],
+                input={
+                    "prompt": prompt,
+                    "width": 512,
+                    "height": 512,
+                    "init_image": file,
+                    "prompt_strength": 0.6,
+                },
             )
-            image_list = await asyncio.gather(*map(download_image, outputs))
+            while prediction.status not in ["succeeded", "failed", "canceled"]:
+                await asyncio.sleep(0.5)
+                prediction.reload()
+            async with aiohttp.ClientSession() as session:
+                image_list = await asyncio.gather(
+                    *[download_image(session, url) for url in prediction.output]
+                )
             logging.debug(f"Created {len(image_list)} new images")
             return image_list
         except Exception as e:
