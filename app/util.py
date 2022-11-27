@@ -68,7 +68,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
     async def download_image(session: aiohttp.ClientSession, url: str) -> Image:
         async with session.get(url) as response:
             raw = await response.read()
-        return Image.open(raw)
+        return Image.open(BytesIO(raw))
 
     # generate new images using stable diffusion
     async def create_image(prompt: str) -> list[Image]:
