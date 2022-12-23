@@ -29,7 +29,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
     :return: extension of image set.
     """
     # captioning list of images
-    async def caption_image(image: Image) -> str:
+    async def caption_image(image: Image) -> str:  # noqa: F
         file = BytesIO()
         image.save(file, "PNG")
         prediction = replicate.predictions.create(
@@ -94,7 +94,7 @@ async def generate_images(images: list[Image]) -> list[Image]:
                     *[download_image(session, url) for url in prediction.output]
                 )
             logging.debug(f"Created {len(image_list)} new images")
-            return image_list
+            return image_list  # noqa: E
         except Exception as e:
             logging.warning(e)
             return []
